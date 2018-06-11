@@ -85,7 +85,7 @@ def get_data(file_id=None):
     logger.debug('Parameter file_id: {}'.format(file_id))
     if app.current_request.query_params is None:
         app.current_request.query_params = {}
-    filters = app.current_request.query_params.get('filters', '{}')
+    filters = app.current_request.query_params.get('filters', '{"file": {}}')
     logger.debug("Filters string is: {}".format(filters))
     try:
         logger.info("Extracting the filter parameter from the request")

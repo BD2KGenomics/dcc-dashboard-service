@@ -109,7 +109,7 @@ class ElasticTransformDump(object):
         query_list = [Q('constant_score', filter=Q(
             'terms', **{'{}__keyword'.format(
                 facet.replace(".", "__")): values['is']}))
-                      for facet, values in filters.items()]
+                      for facet, values in filters['file'].items()]
         # Return a Query object. Make it match_all
         return Q('bool', must=query_list) if len(query_list) > 0 else Q()
 
@@ -267,7 +267,7 @@ class ElasticTransformDump(object):
         """
         # Extract the fields for readability (and slight manipulation)
 
-        _sort = pagination['sort']
+        _sort = pagination['sort'] + ".keyword"
         _order = pagination['order']
         # Apply order
         if 'from' in pagination:

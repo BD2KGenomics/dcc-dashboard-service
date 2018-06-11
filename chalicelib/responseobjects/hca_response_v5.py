@@ -49,7 +49,7 @@ class PaginationObj(JsonObject):
     total = IntegerProperty()
     size = IntegerProperty()
     _from = IntegerProperty(name='from')
-    page = IntegerProperty()
+    # page = IntegerProperty()
     sort = StringProperty()
     order = StringProperty(choices=['asc', 'desc'])
 
@@ -58,10 +58,10 @@ class HitEntry(JsonObject):
     """
     Class defining a hit entry in the Api response
     """
-    entity_id = StringProperty()
-    entity_version = StringProperty()
-    bundleUuid = StringProperty()
-    bundleVersion = StringProperty()
+    # entity_id = StringProperty()
+    # entity_version = StringProperty()
+    # bundleUuid = StringProperty()
+    # bundleVersion = StringProperty()
 
 
 class ApiResponse(JsonObject):
@@ -240,8 +240,8 @@ class KeywordSearchResponse(AbstractResponse, EntryFetcher):
             elif isinstance(value, int):
                 merged_dict[key] = list(merged_dict[key] + [value])
             elif isinstance(value, list):
-                cleaned_list = list(filter(None, value))
-                merged_dict[key] = list(set(merged_dict[key] + cleaned_list))
+                cleaned_list = list(filter(None, chain(value, merged_dict[key])))
+                merged_dict[key] = list(set(cleaned_list))
             elif value is None:
                 merged_dict[key] = []
         merged_dict[identifier] = dict_id
@@ -293,18 +293,18 @@ class KeywordSearchResponse(AbstractResponse, EntryFetcher):
     def make_projects(self, entry):
         projects = {}
         for bundle in entry["bundles"]:
-            for project in bundle["contents"]["project"]:
-                project.pop("_type")
-                project_id = project["project"]
-                translated_project = {
-                    "shortname": project_id,
-                    "laboratory": project.get("laboratory", None)
-                }
-                if project_id not in project:
-                    project[project_id] = translated_project
-                else:
-                    merged_process = self._merge(project[project_id], translated_project, "shortname")
-                    project[project_id] = merged_process
+            project = bundle["contents"]["project"]
+            project.pop("_type")
+            project_id = project["project"]
+            translated_project = {
+                "shortname": project_id,
+                "laboratory": list(set(project.get("laboratory", None)))
+            }
+            if project_id not in projects:
+                projects[project_id] = translated_project
+            else:
+                merged_process = self._merge(project[project_id], translated_project, "shortname")
+                projects[project_id] = merged_process
         return list(projects.values())
 
     def make_files(self, entry):
@@ -341,12 +341,18 @@ class KeywordSearchResponse(AbstractResponse, EntryFetcher):
                     "source": specimen.get("source", None),
                     "totalCells": specimen.get("total_cells", None)
                 }
-                if specimen_id not in specimen:
-                    specimen[specimen_id] = translated_specimen
+                if specimen_id not in specimens:
+                    for key, value in translated_specimen.items():
+                        if key == "id":
+                            continue
+                        else:
+                            translated_specimen[key] = list(set(filter(None, value)))
+                    translated_specimen["totalCells"] = sum(translated_specimen["totalCells"])
+                    specimens[specimen_id] = translated_specimen
                 else:
-                    merged_specimen = self._merge(specimen[specimen_id], translated_specimen, "biomaterial_id")
+                    merged_specimen = self._merge(specimens[specimen_id], translated_specimen, "biomaterial_id")
                     merged_specimen["total_cells"] = sum(merged_specimen["total_cells"])
-                    specimen[specimen_id] = merged_specimen
+                    specimens[specimen_id] = merged_specimen
         return list(specimens.values())
 
     def map_entries(self, entry):
