@@ -55,7 +55,6 @@ class ElasticTransformDump(object):
         self.es_client = Elasticsearch(
             ['{}://{}:{}/'.format(es_protocol, es_domain, es_port)],
             timeout=90)
-        self.logger.info('Creating an instance of ElasticTransformDump')
 
     @staticmethod
     def translate_filters(filters, field_mapping):
@@ -89,8 +88,7 @@ class ElasticTransformDump(object):
         """
         # Each iteration will AND the contents of the list
         query_list = [Q('constant_score', filter=Q(
-            'terms', **{'{}__keyword'.format(
-                facet.replace(".", "__")): values['is']}))
+            'terms', **{facet: values['is']}))
                       for facet, values in filters.iteritems()]
         # Return a Query object. Make it match_all
         return Q('bool', must=query_list) if len(query_list) > 0 else Q()
@@ -165,6 +163,7 @@ class ElasticTransformDump(object):
         # Translate the filters keys
         filters = ElasticTransformDump.translate_filters(
             filters, field_mapping)
+
         # Get the query from 'create_query'
         es_query = ElasticTransformDump.create_query(filters)
         # Do a post_filter using the returned query
@@ -403,7 +402,6 @@ class ElasticTransformDump(object):
 
     def transform_request(self,
                           request_config_file='request_config.json',
-                          mapping_config_file='mapping_config.json',
                           filters=None,
                           pagination=None,
                           post_filter=False):
@@ -427,19 +425,13 @@ class ElasticTransformDump(object):
         # Use this as the base to construct the paths
         # stackoverflow.com/questions/247770/retrieving-python-module-path
         # Use that to get the path of the config module
-        self.logger.info('Transforming /files request')
         config_folder = os.path.dirname(config.__file__)
         # Create the path for the mapping config file
-        mapping_config_path = "{}/{}".format(
-            config_folder, mapping_config_file)
+
         # Create the path for the config_path
         request_config_path = "{}/{}".format(
             config_folder, request_config_file)
-        # Get the Json Objects from the mapping_config and the request_config
-        self.logger.debug(
-            'Getting the request_config and mapping_config file: {}'.format(
-                request_config_path,
-                mapping_config_path))
+
         request_config = self.open_and_return_json(request_config_path)
         # Handle empty filters
         self.logger.debug('Handling empty filters')
@@ -483,11 +475,11 @@ class ElasticTransformDump(object):
             # Execute ElasticSearch request
             es_response = es_search.execute(ignore_cache=True)
             es_response_dict = es_response.to_dict()
+
             self.logger.debug("Printing ES_SEARCH response dict:\n {}".format(
                 json.dumps(es_response_dict)))
             # Extract hits and facets (aggregations)
             es_hits = es_response_dict['hits']['hits']
-            self.logger.info("length of es_hits: " + str(len(es_response_dict['hits']['hits'])))
             # If the number of elements exceed the page size, then we fetched one too many
             # entries to determine if there is a previous or next page.  In that case,
             # return one fewer hit.
@@ -501,13 +493,10 @@ class ElasticTransformDump(object):
             facets = es_response_dict['aggregations'] if 'aggregations' in es_response_dict else {}
             paging = self.generate_paging_dict(es_response_dict, pagination)
             # Creating FileSearchResponse object
-            self.logger.info('Creating FileSearchResponse')
             final_response = FileSearchResponse(
                 hits,
                 paging,
                 facets)
-        self.logger.info(
-            'Returning the final response for transform_request()')
         final_response = final_response.apiResponse.to_json()
         return final_response
 
@@ -525,11 +514,11 @@ class ElasticTransformDump(object):
         to be used for aggregates. Relative to the'config' folder.
         :return: Returns the transformed manifest request
         """
+
         # Use this as the base to construct the paths
         # stackoverflow.com/questions/247770/retrieving-python-module-path
         # Use that to get the path of the config module
         config_folder = os.path.dirname(config.__file__)
-        self.logger.info('Transforming /export request')
         # Create the path for the config_path
         request_config_path = "{}/{}".format(
             config_folder, request_config_file)
@@ -540,27 +529,15 @@ class ElasticTransformDump(object):
         # Handle empty filters
         if filters is None:
             filters = {"file": {}}
+
         # Create an ElasticSearch request
         es_search = self.create_request(
             filters,
             self.es_client,
             request_config,
             post_filter=False)
-        # TODO: This will break beyond 10,000 entries in ElasticSearch.
-        # This needs to be addressed in the near future
-        # Get as many files as simple paging allows
-        es_search = es_search[0:19999]
-        # Execute the ElasticSearch Request
-        self.logger.info('Executing ElasticSearch request')
-        es_response = es_search.execute(ignore_cache=True)
-        # Transform to a raw dictionary
-        es_response_dict = es_response.to_dict()
-        # Get the ManifestResponse object
-        self.logger.info('Creating ManifestResponse object')
-        manifest = ManifestResponse(
-            es_response_dict,
-            request_config['manifest'],
-            request_config['translation'])
+
+        manifest = ManifestResponse(es_search, request_config['manifest'], request_config['translation'])
         return manifest.return_response()
 
     def transform_autocomplete_request(
