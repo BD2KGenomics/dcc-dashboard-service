@@ -2,6 +2,7 @@
 from aws_requests_auth import boto_utils
 from aws_requests_auth.aws_auth import AWSRequestsAuth
 from chalicelib import config
+from copy import deepcopy
 from elasticsearch import Elasticsearch, RequestsHttpConnection
 from elasticsearch_dsl import Search, Q, A
 import json
@@ -88,7 +89,8 @@ class ElasticTransformDump(object):
         # Translate the fields to the appropriate ElasticSearch Index.
         # Probably can be edited later to do not just files but donors, etc.
         # for key, value in filters['file'].items():
-        for key, value in filters.items():
+        iterate_filters = deepcopy(filters)
+        for key, value in iterate_filters.items():
             if key in field_mapping:
                 # Get the corrected term within ElasticSearch
                 corrected_term = field_mapping[key]
@@ -109,7 +111,7 @@ class ElasticTransformDump(object):
         query_list = [Q('constant_score', filter=Q(
             'terms', **{'{}__keyword'.format(
                 facet.replace(".", "__")): values['is']}))
-                      for facet, values in filters['file'].items()]
+                      for facet, values in filters.items()]
         # Return a Query object. Make it match_all
         return Q('bool', must=query_list) if len(query_list) > 0 else Q()
 
@@ -125,7 +127,7 @@ class ElasticTransformDump(object):
         :return: returns an Aggregate object to be used in a Search query
         """
         # Pop filter of current Aggregate
-        excluded_filter = filters['file'].pop(facet_config[agg], None)
+        excluded_filter = filters.pop(facet_config[agg], None)
         # Create the appropriate filters
         filter_query = ElasticTransformDump.create_query(filters)
         # Create the filter aggregate
@@ -146,7 +148,7 @@ class ElasticTransformDump(object):
         #  call, skip it. Otherwise insert the popped
         # value back in
         if excluded_filter is not None:
-            filters['file'][facet_config[agg]] = excluded_filter
+            filters[facet_config[agg]] = excluded_filter
         return aggregate
 
     @staticmethod
@@ -464,6 +466,7 @@ class ElasticTransformDump(object):
         self.logger.debug('Handling empty filters')
         if filters is None:
             filters = {"file": {}}
+        filters = filters["file"]
         # No faceting (i.e. do the faceting on the filtered query)
         self.logger.debug('Handling presence or absence of faceting')
         if post_filter is False:
