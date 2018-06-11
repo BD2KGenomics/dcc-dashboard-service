@@ -1,6 +1,8 @@
 #!/usr/bin/python
+from aws_requests_auth import boto_utils
+from aws_requests_auth.aws_auth import AWSRequestsAuth
 from chalicelib import config
-from elasticsearch import Elasticsearch
+from elasticsearch import Elasticsearch, RequestsHttpConnection
 from elasticsearch_dsl import Search, Q, A
 import json
 import logging
@@ -14,7 +16,7 @@ module_logger = logging.getLogger("dashboardService.elastic_request_builder")
 
 # The minimum total number of hits for which search_after pagination
 # will be used instead of standard from/to pagination.
-SEARCH_AFTER_THRESHOLD = 20000
+SEARCH_AFTER_THRESHOLD = 10000
 
 
 class BadArgumentException(Exception):
@@ -52,9 +54,25 @@ class ElasticTransformDump(object):
             "Protocol must be 'http' or 'https'"
         self.logger.debug('ElasticSearch url: {}://{}:{}/'.format(
             es_protocol, es_domain, es_port))
-        self.es_client = Elasticsearch(
-            ['{}://{}:{}/'.format(es_protocol, es_domain, es_port)],
-            timeout=90)
+        if es_domain.endswith('.es.amazonaws.com'):
+            awsauth = AWSRequestsAuth(
+                aws_host=es_domain,
+                aws_region='us-east-1',
+                aws_service='es',
+                **boto_utils.get_credentials()
+            )
+            self.es_client = Elasticsearch(
+                hosts=[{'host': es_domain, 'port': 443}],
+                http_auth=awsauth,
+                use_ssl=True,
+                verify_certs=True,
+                connection_class=RequestsHttpConnection,
+                timeout=90
+            )
+        else:
+            self.es_client = Elasticsearch(
+                ['{}://{}:{}/'.format(es_protocol, es_domain, es_port)],
+                timeout=90)
         self.logger.info('Creating an instance of ElasticTransformDump')
 
     @staticmethod
@@ -91,7 +109,7 @@ class ElasticTransformDump(object):
         query_list = [Q('constant_score', filter=Q(
             'terms', **{'{}__keyword'.format(
                 facet.replace(".", "__")): values['is']}))
-                      for facet, values in filters.iteritems()]
+                      for facet, values in filters.items()]
         # Return a Query object. Make it match_all
         return Q('bool', must=query_list) if len(query_list) > 0 else Q()
 
@@ -161,7 +179,7 @@ class ElasticTransformDump(object):
         # Create the Search Object
         es_search = Search(
             using=es_client,
-            index=os.getenv(index, 'fb_index'))
+            index=os.getenv(index, 'browser_files_dev'))
         # Translate the filters keys
         filters = ElasticTransformDump.translate_filters(
             filters, field_mapping)
@@ -171,7 +189,7 @@ class ElasticTransformDump(object):
         es_search = es_search.query(
             es_query) if not post_filter else es_search.post_filter(es_query)
         # Iterate over the aggregates in the facet_config
-        for agg, translation in facet_config.iteritems():
+        for agg, translation in facet_config.items():
             # Create a bucket aggregate for the 'agg'.
             # Call create_aggregate() to return the appropriate aggregate query
             es_search.aggs.bucket(
@@ -406,7 +424,8 @@ class ElasticTransformDump(object):
                           mapping_config_file='mapping_config.json',
                           filters=None,
                           pagination=None,
-                          post_filter=False):
+                          post_filter=False,
+                          index="ES_FILE_INDEX"):
         """
         This function does the whole transformation process. It takes
         the path of the config file, the filters, and
@@ -460,7 +479,8 @@ class ElasticTransformDump(object):
                 filters,
                 self.es_client,
                 request_config,
-                post_filter=post_filter)
+                post_filter=post_filter,
+                index=index)
         # Handle pagination
         self.logger.debug('Handling pagination')
         if pagination is None:
