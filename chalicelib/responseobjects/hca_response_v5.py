@@ -1,11 +1,14 @@
 #!/usr/bin/python
 import abc
 from chalicelib.responseobjects.utilities import json_pp
+from chalice import Response
 import logging
 import jmespath
 from jsonobject import JsonObject, StringProperty, FloatProperty, \
     IntegerProperty, ListProperty, ObjectProperty
 import os
+import csv
+from io import BytesIO
 
 module_logger = logging.getLogger("dashboardService.elastic_request_builder")
 
@@ -122,26 +125,52 @@ class ManifestResponse(AbstractResponse):
     """
     Class for the Manifest response. Based on the AbstractionResponse class
     """
-    def return_response(self):
-        return self.apiResponse
 
-    def __init__(self, raw_response, manifest_entries, mapping):
+    def return_response(self):
+        es_search = self.es_search
+
+        def field_mapper():
+            for hit in es_search.scan():
+                hit_dict = hit.to_dict()
+                mapped_dict = {}
+                for friendly_name_key, es_name_value in self.mapping.iteritems():
+                    es_val = jmespath.search(es_name_value, hit_dict)
+                    if es_val and friendly_name_key in self.manifest_entries:
+                        mapped_dict[friendly_name_key] = es_val
+                yield mapped_dict
+
+        headers = {'Content-Disposition': 'attachment; filename="export.tsv"',
+                   'Content-Type': 'text/tab-separated-values'}
+
+        output = BytesIO()
+        mapped_dict = field_mapper().next()
+        if mapped_dict:
+            writer = csv.DictWriter(output, fieldnames=mapped_dict.keys(), dialect='excel-tab')
+            writer.writeheader()
+
+        for mapped_dict in field_mapper():
+            writer.writerow(mapped_dict)
+
+        return Response(body=output.getvalue(), headers=headers, status_code=200)
+
+    def __init__(self, es_search, manifest_entries, mapping):
         """
         The constructor takes the raw response from ElasticSearch and creates
-        a tsv file based on the columns from the manifest_entries
+        a csv file based on the columns from the manifest_entries
         :param raw_response: The raw response from ElasticSearch
         :param mapping: The mapping between the columns to values within ES
         :param manifest_entries: The columns that will be present in the tsv
         """
-
-        # TODO: Fix manifests and improve memory usage.
-        raise Exception("Not yet implemented")
+        self.es_search = es_search
+        self.manifest_entries = manifest_entries
+        self.mapping = mapping
 
 
 class EntryFetcher:
     """
     Helper class containing helper methods
     """
+
     @staticmethod
     def fetch_entry_value(mapping, entry, key):
         """
@@ -178,6 +207,7 @@ class SummaryResponse(AbstractResponse):
     """
     Class for the summary response. Based on the AbstractResponse class
     """
+
     def return_response(self):
         return self.apiResponse
 
@@ -273,7 +303,6 @@ class KeywordSearchResponse(AbstractResponse, EntryFetcher):
         # TODO: This is actually wrong. The Response from a single fileId call
         # isn't under hits. It is actually not wrapped under anything
         super(KeywordSearchResponse, self).__init__()
-        self.logger.info('Creating the entries in ApiResponse')
         class_entries = {'hits': [
             self.map_entries(x) for x in hits], 'pagination': None}
         self.apiResponse = ApiResponse(**class_entries)
@@ -283,6 +312,7 @@ class FileSearchResponse(KeywordSearchResponse):
     """
     Class for the file search response. Inherits from KeywordSearchResponse
     """
+
     @staticmethod
     def create_facet(contents):
         """
@@ -306,6 +336,7 @@ class FileSearchResponse(KeywordSearchResponse):
         :param contents: A dictionary from a particular ElasticSearch aggregate
         :return: A FacetObj constructed out of the ElasticSearch aggregate
         """
+
         # HACK
         def choose_entry(_term):
             if 'key_as_string' in _term:
@@ -320,7 +351,7 @@ class FileSearchResponse(KeywordSearchResponse):
             terms=term_list,
             total=0 if len(
                 contents['myTerms']['buckets']
-                ) == 0 else contents['doc_count'],
+            ) == 0 else contents['doc_count'],
             type='terms'  # Change once we on-board more types of contents.
         )
         return facet.to_json()
