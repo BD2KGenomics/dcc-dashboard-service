@@ -213,14 +213,14 @@ class SummaryResponse(AbstractResponse):
         # Create a SummaryRepresentation object
         self.apiResponse = SummaryRepresentation(
             fileCount=hits['total'],
-            biomaterialCount=self.agg_contents(
-                aggregates, 'biomaterialCount', agg_form='value'),
+            specimenCount=self.agg_contents(
+                aggregates, 'specimenCount', agg_form='value'),
             projectCount=self.agg_contents(
                 aggregates, 'projectCode', agg_form='value'),
             totalFileSize=self.agg_contents(
                 aggregates, 'total_size', agg_form='value'),
-            organCounts=self.agg_contents(
-                aggregates, 'organsCount', agg_form='value')
+            organCount=self.agg_contents(
+                aggregates, 'organCount', agg_form='value')
         )
 
 

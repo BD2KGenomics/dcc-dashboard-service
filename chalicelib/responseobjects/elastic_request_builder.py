@@ -387,6 +387,7 @@ class ElasticTransformDump(object):
         # Handle empty filters
         if filters is None:
             filters = {"file": {}}
+        filters = filters["file"]
         # Create a request to ElasticSearch
         self.logger.info('Creating request to ElasticSearch')
         es_search = self.create_request(
@@ -401,9 +402,9 @@ class ElasticTransformDump(object):
         # Override the aggregates for Samples,
         # Primary site count, and project count
         for field, agg_name in (
-                ('biomaterialId',
-                 'biomaterialCount'),
-                ('organ', 'organsCount'),
+                ('specimenId',
+                 'specimenCount'),
+                ('organ', 'organCount'),
                 ('project', 'projectCode')):
             cardinality = request_config['translation'][field]
             es_search.aggs.metric(
