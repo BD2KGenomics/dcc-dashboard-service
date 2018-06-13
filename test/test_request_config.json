@@ -7,16 +7,11 @@
     "ES_FILE_INDEX": {
       "entity_id": "entity_id",
       "entity_version":"entity_version"
-    },
-    "ES_DONOR_INDEX": {
-      "donor": "donor_uuid"
     }
   },
   "manifest": [
-    "File ID:Version",
-    "Assay Id",
-    "Analysis Id",
-    "Project Id"
+    "entity_id",
+    "entity_version"
   ],
   "facets": [
 

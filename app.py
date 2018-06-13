@@ -15,12 +15,6 @@ app.debug = True
 app.log.setLevel(logging.DEBUG)
 
 
-# TODO: Write the docstrings so they can support swagger.
-# Please see https://github.com/rochacbruno/flasgger
-# stackoverflow.com/questions/43911510/ \
-# how-to-write-docstring-for-url-parameters
-
-
 @app.route('/')
 def hello():
     return 'Hello World!'
@@ -79,39 +73,33 @@ def get_data(file_id=None):
     :return: Returns a dictionary with the entries to be used when generating
     the facets and/or table data
     """
-    # Setup logging
     logger = app.log
+
     # Get all the parameters from the URL
-    logger.debug('Parameter file_id: {}'.format(file_id))
     if app.current_request.query_params is None:
         app.current_request.query_params = {}
     filters = app.current_request.query_params.get('filters', '{}')
-    logger.debug("Filters string is: {}".format(filters))
+
     try:
-        logger.info("Extracting the filter parameter from the request")
         filters = ast.literal_eval(filters)
         # Make the default pagination
-        logger.info("Creating pagination")
         pagination = _get_pagination(app.current_request)
-        logger.debug("Pagination: \n".format(json_pp(pagination)))
+
         # Handle <file_id> request form
         if file_id is not None:
-            logger.info("Handling single file id search")
-            filters['file']['fileId'] = {"is": [file_id]}
+            filters['entity_id'] = {"is": [file_id]}
         # Create and instance of the ElasticTransformDump
-        logger.info("Creating ElasticTransformDump object")
         es_td = EsTd(es_domain=os.getenv("ES_DOMAIN", "elasticsearch1"),
                      es_port=os.getenv("ES_PORT", 9200),
                      es_protocol=os.getenv("ES_PROTOCOL", "http"))
         # Get the response back
-        logger.info("Creating the API response")
         response = es_td.transform_request(filters=filters, pagination=pagination, post_filter=True)
     except BadArgumentException as bae:
         response = dict(error=bae.message)
         response.status_code = 400
         return response
     except Exception as e:
-        logger.error("Malformed filters parameter: {}".format(e.message))
+        logger.error("Malformed filters parameter {}: {}".format(type(e).__name__, e.message))
         return "Malformed filters parameter"
     # Returning a single response if <file_id> request form is used
     if file_id is not None:
@@ -156,9 +144,7 @@ def get_data_pie():
     filters = app.current_request.query_params.get('filters', '{"file": {}}')
     logger.debug("Filters string is: {}".format(filters))
     try:
-        logger.info("Extracting the filter parameter from the request")
         filters = ast.literal_eval(filters)
-        filters = {"file": {}} if filters == {} else filters
 
         # Make the default pagination
         logger.info("Creating pagination")
@@ -204,9 +190,7 @@ def get_summary():
     filters = app.current_request.query_params.get('filters', '{"file": {}}')
     logger.debug("Filters string is: {}".format(filters))
     try:
-        logger.info("Extracting the filter parameter from the request")
         filters = ast.literal_eval(filters)
-        filters = {"file": {}} if filters == {} else filters
     except Exception as e:
         logger.error("Malformed filters parameter: {}".format(e.message))
         return "Malformed filters parameter"
@@ -267,9 +251,7 @@ def get_search():
     filters = app.current_request.query_params.get('filters', '{"file": {}}')
     try:
         # Set up the default filter if it is returned as an empty dictionary
-        logger.info("Extracting the filter parameter from the request")
         filters = ast.literal_eval(filters)
-        filters = {"file": {}} if filters == {} else filters
     except Exception as e:
         logger.error("Malformed filters parameter: {}".format(e.message))
         return "Malformed filters parameter"
@@ -318,7 +300,7 @@ def get_order():
     return {'order': order_list}
 
 
-@app.route('/repository/files/export', methods=['GET'])
+@app.route('/repository/files/export', methods=['GET'], content_types=['text/tab-separated-values', 'application/json'])
 def get_manifest():
     """
     Creates and returns a manifest based on the filters pased on
@@ -334,22 +316,18 @@ def get_manifest():
     logger = logging.getLogger("dashboardService.webservice.get_manifest")
     if app.current_request.query_params is None:
         app.current_request.query_params = {}
-    filters = app.current_request.query_params.get('filters', '{"file": {}}')
+    filters = app.current_request.query_params.get('filters', '{}')
     logger.debug("Filters string is: {}".format(filters))
     try:
-        logger.info("Extracting the filter parameter from the request")
         filters = ast.literal_eval(filters)
-        filters = {"file": {}} if filters == {} else filters
     except Exception as e:
         logger.error("Malformed filters parameter: {}".format(e.message))
         return "Malformed filters parameter"
-    # Create and instance of the ElasticTransformDump
-    logger.info("Creating ElasticTransformDump object")
+
     es_td = EsTd(es_domain=os.getenv("ES_DOMAIN", "elasticsearch1"),
                  es_port=os.getenv("ES_PORT", 9200),
                  es_protocol=os.getenv("ES_PROTOCOL", "http"))
-    # Get the response back
-    logger.info("Creating the API response")
+
     response = es_td.transform_manifest(filters=filters)
-    # Return the excel file
+
     return response

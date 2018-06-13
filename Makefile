@@ -39,6 +39,7 @@ travistest: stop reset run-travis populate
 	echo "Sleeping 60 seconds before unit testing"
 	sleep 60
 	docker-compose exec dcc-dashboard-service py.test -p no:cacheprovider -s -x
+	rm -f test/data_generator/*.jsonl
 
 run:
 	# Run a chalice instance locally, in local mode, with bridge mode networking
@@ -53,3 +54,4 @@ testme: stop reset run
 	echo "Sleeping 60 seconds before unit testing"
 	sleep 60
 	docker-compose exec dcc-dashboard-service py.test -p no:cacheprovider -s -x
+	rm -f test/data_generator/*.jsonl
