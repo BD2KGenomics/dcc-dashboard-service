@@ -15,11 +15,11 @@ class BoardwalkColumns:
     def __init__(self):
         pass
 
+    # Special columns.
     SAMPLE_UUID = 'Sample UUID'
     DONOR_UUID = 'Donor UUID'
     FILE_TYPE = 'File Type'
     FILE_URLS = 'File URLs'
-    SPECIMEN_UUID = 'Specimen UUID'
     FILE_DOS_URI = 'File DOS URI'
     FILE_PATH = 'File Path'
     UPLOAD_FILE_ID = 'Upload File ID'
@@ -194,16 +194,16 @@ class BagHandler:
         reader = csv.DictReader(StringIO(self.data), delimiter='\t')
         participants = set()
         native_protocols = set()
-        specimens = {}  # key: specimen UUID, value count
+        samples = {}  # key: samples UUID, value count
         for row in reader:
             # Add all participants. It's a set, so no dupes
             participants.add(row[BoardwalkColumns.DONOR_UUID])
 
-            specimen_uuid = row[BoardwalkColumns.SPECIMEN_UUID]
-            if specimen_uuid in specimens:
-                specimens[specimen_uuid] = specimens[specimen_uuid] + 1
+            sample_uuid = row[BoardwalkColumns.SAMPLE_UUID]
+            if sample_uuid in samples:
+                samples[sample_uuid] = samples[sample_uuid] + 1
             else:
-                specimens[specimen_uuid] = 1
+                samples[sample_uuid] = 1
 
             # Track all the different cloud native url protocols
             for file_url in row[BoardwalkColumns.FILE_URLS].split(','):
@@ -211,7 +211,7 @@ class BagHandler:
                 if protocol is not None:
                     native_protocols.add(protocol)
 
-        return participants, max(specimens.values()), native_protocols
+        return participants, max(samples.values()), native_protocols
 
     def samples(self, max_files_in_sample, native_protocols):
         """
@@ -232,14 +232,14 @@ class BagHandler:
         reader = csv.DictReader(StringIO(self.data), delimiter='\t')
         samples = []
 
-        current_specimen_uuid = None
+        current_sample_uuid = None
         current_row = None
 
         for row in sorted(reader, key=operator.itemgetter(
-                BoardwalkColumns.SPECIMEN_UUID)):
-            specimen_uuid = row[BoardwalkColumns.SPECIMEN_UUID]
-            if specimen_uuid != current_specimen_uuid:
-                current_specimen_uuid = specimen_uuid
+                BoardwalkColumns.SAMPLE_UUID)):
+            sample_uuid = row[BoardwalkColumns.SAMPLE_UUID]
+            if sample_uuid != current_sample_uuid:
+                current_sample_uuid = sample_uuid
                 index = 1
                 if current_row is not None:
                     samples.append(current_row)
