@@ -4,6 +4,9 @@ import unittest
 import os
 import zipfile
 from bagitutils import BagHandler
+import tempfile
+import shutil
+import csv
 
 
 class TestBagHandlerMethods(unittest.TestCase):
@@ -31,7 +34,7 @@ NIH Data Commons	NIH Data Commons Pilot	Broad Public Datasets	ABC123456	c2b4c298
             sorted(participants))
         self.assertEquals(len(sample), 1)
         row = sample[0]
-        self.assertEquals(row['participant'], 'c2b4c298-4d80-4aaa-bddf-20c15d184af3')
+        self.assertEquals(row['participant_id'], 'c2b4c298-4d80-4aaa-bddf-20c15d184af3')
         self.assertEquals(row['gs_url1'], 'gs://broad-public-datasets/NA12878_downsampled_for_testing/unmapped/H06JUADXX130110.1.ATCACGAT.20k_reads.bam')
         self.assertFalse('s3_url1' in row)
 
@@ -78,24 +81,40 @@ NIH Data Commons	NIH Data Commons Pilot	Broad Public Datasets	ABC123456	c2b4c298
             self.assertNotIn('0', key)
 
     def test_fc_mock(self):
-        """Tests a mock file with a minimal set of columns."""
+        """Tests a small mock file with a minimal set of columns,
+        but which covers all use cases."""
         mock_simple = 'test/fc_mock.tsv'
-        real107 = '/home/michael/dev/manifest-handover/manifests/manifest_107_genomes.tsv'
         with open(mock_simple, 'r') as tsv:
             lines = tsv.readlines()
         data = "\n".join(lines)
         bag = BagHandler(data=data, bag_info={}, bag_name='manifest')
-        participants, max_files_in_sample, protocols = bag.participants_and_max_files_in_sample_and_protocols()
-        self.assertEqual(len(participants), 2)
-        self.assertEqual(len(protocols), 1)
+
+        participants, max_files_in_sample, protocols = \
+            bag.participants_and_max_files_in_sample_and_protocols()
+        self.assertEqual(len(participants), 3)
+        self.assertEqual(len(protocols), 2)
         self.assertEqual(max_files_in_sample, 2)
+
         samples = bag.samples(max_files_in_sample, protocols)
-        self.assertEqual(len(samples), 2)
+        self.assertEqual(len(samples), 4)
 
-        print(bag.data)
-        data_path = '/home/michael/dev/manifest-handover/test_107'
-        bag.write_csv_files(data_path)
+        # Testing numbers of rows and columns in output samples.tsv file.
+        tmpdir = tempfile.mkdtemp()
+        bag.write_csv_files(tmpdir)
+        n_rows = 0
+        n_cols = 0
+        with open(tmpdir + '/sample.tsv', 'r') as fp:
+             reader = csv.reader(fp, delimiter='\t')
+             first_row = True
+             for row in reader:
+                 if first_row:
+                     first_row = False
+                     n_cols = len(row)  # number of columns in samples.tsv
+                 n_rows += 1
 
+        self.assertEqual(n_rows, 5)
+        self.assertEqual(n_cols, 15)
+        shutil.rmtree(tmpdir)
 
 
 if __name__ == '__main__':
