@@ -11,6 +11,36 @@ import csv
 
 class TestBagHandlerMethods(unittest.TestCase):
 
+    def setUp(self):
+        # Create a list of lists representing the output of the
+        # bag.write_csv_files method of the fc_mock.tsv file residing in
+        # the test folder.
+        self.bag_tsv_file = [
+            ['entity:sample_id', 'participant_id', 'file_dos_uri1',
+             'file_dos_uri2', 'file_dos_uri3', 'file_path1', 'file_path2',
+             'file_path3', 'file_type1', 'file_type2', 'file_type3', 'gs_url1',
+             'gs_url2', 'gs_url3', 's3_url1', 's3_url2', 's3_url3',
+             'specimen_uuid', 'upload_file_id1', 'upload_file_id2',
+             'upload_file_id3'],
+             ['s1', 'd1', '', '', '', '', '', '', 'crai', 'cram', '',
+              'gs://junk.crai', 'gs://junk.cram', '', '', '', '', 'sp1', '', '',
+              ''],
+             ['s2', 'd1', '', '', '', '', '', '', 'crai', 'cram', '', '',  '',
+               '', 's3://junk.crai', 's3://junk.cram', '', 'sp1', '', '', ''],
+             ['s3', 'd2', '', '', '', '', '', '', 'crai', 'cram', '',
+              'gs://junk.crai', 'gs://junk.cram', '', '', '', '', 'sp1', '', '',
+               ''],
+             ['s4', 'd3', '', '', '', '', '', '', 'crai', 'cram', '',
+              'gs://junk.crai', 'gs://junk.cram', '', '', '', '', 'sp1', '', '',
+               ''],
+             ['s5', 'd4', '', '', '', '', '', '', 'crai', 'cram', 'bam',
+              'gs://junk.crai', 'gs://junk.cram', 'gs://junk.bam', '', '', '',
+               'sp2', '', '', ''],
+             ['s6', 'd5', '', '', '', '', '', '', 'crai', '', '',
+              'gs://junk.crai', '', '', '', '', '', 'sp3', '', '', '']
+        ]
+
+
     def test_zipRootIsManifest(self):
         s = "Program	Project	Center Name	Submitter Donor ID	Donor UUID	Submitter Donor Primary Site	Submitter Specimen ID	Specimen UUID	Submitter Specimen Type	Submitter Experimental Design	Submitter Sample ID	Sample UUID	Analysis Type	Workflow Name	Workflow Version	File Type	File Path	Upload File ID	Data Bundle UUID	Metadata.json	File URLs	File DOS URL\n\
         NHLBI TOPMed: Whole Genome Sequencing and Related Phenotypes in the Framingham Heart Study	Framingham	Broad	20428	09df7aef-246a-57eb-9685-e1d4d18b55ab	BLOOD	SRS1353998	2923638f-0784-5704-8d93-5b97b4ca3092	Normal - Blood	Seq_DNA_SNP_CNV; Seq_DNA_WholeGenome	NWD692354	dd8337dd-f731-5c3b-9a03-bdae77ca47a9	alignment	topmed-spinnaker	Alpha Build 1	crai	NWD692354.b38.irc.v1.cram.crai	5a00cc38-2f8d-4d34-98e0-0a847579b988	50cfaf90-0998-5ef5-aa0b-cfaea71d5a7d		[u'gs://topmed-irc-share/genomes/NWD692354.b38.irc.v1.cram.crai', u's3://nih-nhlbi-datacommons/NWD692354.b38.irc.v1.cram.crai']	dos://dos-dss.ucsc-cgp-dev.org/ga4gh/dos/v1/dataobjects/5a00cc38-2f8d-4d34-98e0-0a847579b988?version=2018-02-28T160411.061319Z\n\
@@ -82,7 +112,13 @@ NIH Data Commons	NIH Data Commons Pilot	Broad Public Datasets	ABC123456	c2b4c298
 
     def test_fc_mock(self):
         """Tests a small mock file with a minimal set of columns,
-        but which covers all use cases."""
+        but which covers all use cases:
+            - common case of one sample of a donor with one crai and one cram
+              file
+            - a case of one sample of a donor with one crai, one cram and one
+              bam file
+            - a cose of one sample of a donor with only one bam file."""
+
         mock_simple = 'test/fc_mock.tsv'
         with open(mock_simple, 'r') as tsv:
             lines = tsv.readlines()
@@ -91,29 +127,25 @@ NIH Data Commons	NIH Data Commons Pilot	Broad Public Datasets	ABC123456	c2b4c298
 
         participants, max_files_in_sample, protocols = \
             bag.participants_and_max_files_in_sample_and_protocols()
-        self.assertEqual(len(participants), 3)
+        self.assertEqual(len(participants), 5)
         self.assertEqual(len(protocols), 2)
-        self.assertEqual(max_files_in_sample, 2)
+        self.assertEqual(max_files_in_sample, 3)
 
         samples = bag.samples(max_files_in_sample, protocols)
-        self.assertEqual(len(samples), 4)
+        self.assertEqual(len(samples), 6)
 
-        # Testing numbers of rows and columns in output samples.tsv file.
+        self.assertEqual(len(self.bag_tsv_file), 7)
+        self.assertEqual(len(self.bag_tsv_file[0]), 21)
+
+        # Test whether the content of output samples.tsv file is congruent with
+        # the TSV file bag_tsv_file defined in the setUp of this test suite.
         tmpdir = tempfile.mkdtemp()
         bag.write_csv_files(tmpdir)
-        n_rows = 0
-        n_cols = 0
         with open(tmpdir + '/sample.tsv', 'r') as fp:
-             reader = csv.reader(fp, delimiter='\t')
-             first_row = True
-             for row in reader:
-                 if first_row:
-                     first_row = False
-                     n_cols = len(row)  # number of columns in samples.tsv
-                 n_rows += 1
+            reader = csv.reader(fp, delimiter='\t')
+            tsv_content = list(reader)  # list of lists
+        self.assertListEqual(self.bag_tsv_file, tsv_content)
 
-        self.assertEqual(n_rows, 5)
-        self.assertEqual(n_cols, 15)
         shutil.rmtree(tmpdir)
 
 
