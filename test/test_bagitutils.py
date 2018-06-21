@@ -7,6 +7,7 @@ from bagitutils import BagHandler
 import tempfile
 import shutil
 import csv
+import filecmp
 
 
 class TestBagHandlerMethods(unittest.TestCase):
@@ -15,31 +16,10 @@ class TestBagHandlerMethods(unittest.TestCase):
         # Create a list of lists representing the output of the
         # bag.write_csv_files method of the fc_mock.tsv file residing in
         # the test folder.
-        self.bag_tsv_file = [
-            ['entity:sample_id', 'participant_id', 'file_dos_uri1',
-             'file_dos_uri2', 'file_dos_uri3', 'file_path1', 'file_path2',
-             'file_path3', 'file_type1', 'file_type2', 'file_type3', 'gs_url1',
-             'gs_url2', 'gs_url3', 's3_url1', 's3_url2', 's3_url3',
-             'specimen_uuid', 'upload_file_id1', 'upload_file_id2',
-             'upload_file_id3'],
-             ['s1', 'd1', '', '', '', '', '', '', 'crai', 'cram', '',
-              'gs://junk.crai', 'gs://junk.cram', '', '', '', '', 'sp1', '', '',
-              ''],
-             ['s2', 'd1', '', '', '', '', '', '', 'crai', 'cram', '', '',  '',
-               '', 's3://junk.crai', 's3://junk.cram', '', 'sp1', '', '', ''],
-             ['s3', 'd2', '', '', '', '', '', '', 'crai', 'cram', '',
-              'gs://junk.crai', 'gs://junk.cram', '', '', '', '', 'sp1', '', '',
-               ''],
-             ['s4', 'd3', '', '', '', '', '', '', 'crai', 'cram', '',
-              'gs://junk.crai', 'gs://junk.cram', '', '', '', '', 'sp1', '', '',
-               ''],
-             ['s5', 'd4', '', '', '', '', '', '', 'crai', 'cram', 'bam',
-              'gs://junk.crai', 'gs://junk.cram', 'gs://junk.bam', '', '', '',
-               'sp2', '', '', ''],
-             ['s6', 'd5', '', '', '', '', '', '', 'crai', '', '',
-              'gs://junk.crai', '', '', '', '', '', 'sp3', '', '', '']
-        ]
 
+        self.bag_manifest = 'test/manifest_bag'
+        self.bag_participant_tsv = 'test/manifest_bag/participant.tsv'
+        self.bag_sample_tsv = 'test/manifest_bag/sample.tsv'
 
     def test_zipRootIsManifest(self):
         s = "Program	Project	Center Name	Submitter Donor ID	Donor UUID	Submitter Donor Primary Site	Submitter Specimen ID	Specimen UUID	Submitter Specimen Type	Submitter Experimental Design	Submitter Sample ID	Sample UUID	Analysis Type	Workflow Name	Workflow Version	File Type	File Path	Upload File ID	Data Bundle UUID	Metadata.json	File URLs	File DOS URL\n\
@@ -134,17 +114,20 @@ NIH Data Commons	NIH Data Commons Pilot	Broad Public Datasets	ABC123456	c2b4c298
         samples = bag.samples(max_files_in_sample, protocols)
         self.assertEqual(len(samples), 6)
 
-        self.assertEqual(len(self.bag_tsv_file), 7)
-        self.assertEqual(len(self.bag_tsv_file[0]), 21)
-
         # Test whether the content of output samples.tsv file is congruent with
         # the TSV file bag_tsv_file defined in the setUp of this test suite.
         tmpdir = tempfile.mkdtemp()
         bag.write_csv_files(tmpdir)
-        with open(tmpdir + '/sample.tsv', 'r') as fp:
-            reader = csv.reader(fp, delimiter='\t')
-            tsv_content = list(reader)  # list of lists
-        self.assertListEqual(self.bag_tsv_file, tsv_content)
+
+        # Compare the two output files with the truth files.
+        self.assertTrue(filecmp.cmp(self.bag_participant_tsv,
+                    tmpdir + '/participant.tsv'))
+        self.assertTrue(filecmp.cmp(self.bag_sample_tsv,
+                    tmpdir + '/sample.tsv'))
+
+        # Compare entire manifest output directory.
+        fcmp = filecmp.dircmp(self.bag_manifest, tmpdir)
+        self.assertTrue(fcmp.same_files == ['participant.tsv', 'sample.tsv'])
 
         shutil.rmtree(tmpdir)
 
